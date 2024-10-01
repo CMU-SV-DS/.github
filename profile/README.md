@@ -1,16 +1,5 @@
 # Hi there 👋
 
-<!--
-
-**Here are some ideas to get you started:**
-
-🙋‍♀️ A short introduction - what is your organization all about?
-🌈 Contribution guidelines - how can the community get involved?
-👩‍💻 Useful resources - where can the community find your docs? Is there anything else the community should know?
-🍿 Fun facts - what does your team eat for breakfast?
-🧙 Remember, you can do mighty things with the power of [Markdown](https://docs.github.com/github/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax)
--->
-
 
 # Project Structure
 
@@ -22,8 +11,13 @@ Raft/ 2PC
   - Instructions: https://github.com/CMU-SV-DS/sadds-raft/blob/refactor-structure-kejie/StartInstagram.md
 
 Data shardning
+- fully functional sadds-service (backend of instagram story) [proxy-dev branch](https://github.com/CMU-SV-DS/sadds-service)
+  - go into sadds-service-proxy and follow the instruction [here](https://github.com/CMU-SV-DS/sadds-service/tree/proxy-dev/sadds-service-proxy)
+  - run sadds-service https://github.com/CMU-SV-DS/sadds-service/blob/proxy-dev/README.md
 
-- 
+ - Raft dashboard
+   - raft-client switch to sharding-updates branch https://github.com/CMU-SV-DS/sadds-raft-client/tree/sharding-updates
+   - Raft-monitor
 
 Instagram client (for user)
 
