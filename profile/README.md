@@ -60,7 +60,7 @@ Instagram client (for user)
 
 ## Data Shardning
 
-### Implementation logic
+### Range Hashing on follower table
 
 - Data Split into Two Tables:
   - Follow Table: Stores entries where one user follows another. This table is sharded based on the name (or unique identifier) of the follower (user who is following someone else).
@@ -81,4 +81,22 @@ Instagram client (for user)
 - Balanced Write Load: Each follow action is written to two distinct shards, spreading the write load across the database system and preventing overload on any single shard.
 
 
+### Consistant Hashing on user table
+
+- Hashing Mechanism:
+  - Each user or key is assigned to a virtual node (VID) based on a hash function.
+  - The virtual nodes (like node1_v3, node1_v2, node2_v2) represent points on a hash ring.
+- Virtual Nodes (VIDs):
+  - Each physical node (e.g., node1, node2) hosts multiple virtual nodes (such as node1_v3, node1_v2) to distribute load more evenly across the system. This setup allows for finer distribution of data and avoids overloading a single physical node.
+- Mapping Keys to Nodes:
+  - When a key (e.g., username "john") needs to be stored or accessed, the system uses the hash function to locate the nearest virtual node on the hash ring.
+  - This approach determines which physical node (like node1 or node2) will store or serve the data for each user.
+- Handling Changes in Nodes:
+  - When nodes are added or removed, only a small subset of keys needs to be remapped to maintain balance. This minimizes data movement, as opposed to a typical hashing method where almost all data would need to be reassigned.
+ 
+### Benefits of the design
+
+- By using virtual nodes, consistent hashing ensures a more even distribution of data across physical nodes, preventing any single node from becoming a bottleneck.
+- Consistent hashing allows the system to add or remove nodes with minimal disruption. Only a portion of data is rehashed, which simplifies scaling up or down.
+- The hashing mechanism allows quick and direct access to the appropriate node for each key, reducing latency in data access.
 
