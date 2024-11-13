@@ -1,7 +1,7 @@
 # Hi there 👋
 
 
-# Project Structure
+## Project Structure
 
 Raft/ 2PC
 
@@ -28,198 +28,57 @@ Instagram client (for user)
 
 
 
+## Raft / 2PC
+
+### Raft Implementation
+
+- Leader Election:
+  - Election Timeout: If a follower node doesn’t receive communication (a "heartbeat") from a leader within a set time, it assumes the leader has failed.
+  - The follower becomes a candidate and requests votes from other nodes to become the new leader.
+  - Voting: Each node can vote for only one candidate per term. If a candidate receives a majority of votes, it becomes the new leader.
+  - The leader then sends regular heartbeats to keep followers in sync and prevent new elections.
+- Log Replication:
+  - Leader Receives Client Requests: The leader accepts client requests, adds entries to its log, and sends these entries to followers.
+  - Replication to Followers: Followers append the entries to their logs and acknowledge receipt.
+  - Commit: Once a majority of followers have appended an entry, the leader marks it as committed and applies it to its state machine.
+  - The leader then informs followers of committed entries so they apply these changes to their own state machines, ensuring consistency.
+- Safety and Consistency:
+  - Commit Guarantee: Raft ensures that committed entries are not lost as long as a majority of nodes are alive.
+  - Consistency: All nodes eventually apply the same sequence of log entries in the same order, so they maintain a consistent state across the distributed system.
+
+### 2PC Implementation
+
+- Prepare Phase:
+  - The coordinator sends a "prepare" request to each participant, asking if it can commit the transaction.
+  - Each participant checks if it can complete the transaction (e.g., has enough resources, no conflicts) and responds with a "yes" (prepared to commit) or "no" (cannot commit).
+  - If any participant sends a "no," the coordinator decides to abort the transaction.
+- Commit Phase:
+  - If all participants responded "yes," the coordinator sends a "commit" request, and each participant commits the transaction.
+  - If any participant responded "no" in the prepare phase, or if a failure occurred, the coordinator sends a "rollback" request, and each participant rolls back its part of the transaction.
+  - Each participant acknowledges the commit or rollback to the coordinator, ensuring all nodes reach the same final state.
+
+
+## Data Shardning
+
+### Implementation logic
+
+- Data Split into Two Tables:
+  - Follow Table: Stores entries where one user follows another. This table is sharded based on the name (or unique identifier) of the follower (user who is following someone else).
+  - Following Table: Stores entries for users who are followed by others. This table is sharded based on the name (or unique identifier) of the followee (user who is being followed).
+- Data Insertion:
+  - When a user (User1) follows another user (User2), two entries are created:
+    - An entry in the Follow Table indicating that User1 follows User2. This entry is stored in the shard assigned to User1.
+    - An entry in the Following Table showing that User2 is followed by User1. This entry is stored in the shard assigned to User2.
+- Data Retrieval:
+  - When viewing a user’s profile, only one shard needs to be accessed to retrieve both the user's following and followers data:
+    - If you’re looking up the following list (people the user follows), you only query the shard based on the user’s name in the Follow Table.
+    - If you’re looking up the follower list (people following the user), you only query the shard based on the user’s name in the Following Table.
+
+ ### Benefits of the design
+
+- Efficient Retrieval: By storing "follow" and "follower" data separately and sharding based on usernames, you can retrieve a user’s entire following or follower list from a single shard, reducing the need for complex cross-shard queries.
+- Scalability: Sharding by usernames distributes data evenly across shards as the number of users grows, allowing for horizontal scalability and avoiding concentration of data in any single shard.
+- Balanced Write Load: Each follow action is written to two distinct shards, spreading the write load across the database system and preventing overload on any single shard.
 
 
 
-
-# sadds-raft-suite
-
-![raftdb workflow](https://github.com/CMU-SV-DS/sadds-raftdb/actions/workflows/build.yml/badge.svg)
-
-This is an experimental project to build a distributed database based on the Raft
-Consensus Algorithm. There are two main components when a database is launched.
-The first one is Raft nodes which are storage entities based on the Raft Algorithm
-to store data. The second is a Proxy server to monitor Raft nodes' status and handle
-HTTP requests from clients. The following snippet shows how to build this project
-and run the database via docker-compose.
-
-## Suite Content
-- Raft Core (`./src`): The main Raft implementation, which will be the node's runtime of the cluster.
-- Raft Proxy (`./bin/proxy.cc`): The proxy server to handle HTTP requests from clients and get some Raft nodes' status.
-- Raft Monitor (`./submodules/raft-monitor`): The monitor server to monitor Raft nodes' status and handle HTTP requests from admin-panel.
-- Raft Client (`./submodules/raft-client`): The admin panel to monitor Raft nodes' status and list events and database data.
-## Installation
-
-```
-git clone https://github.com/CMU-SV-DS/sadds-raft.git
-git submodule init
-git submodule update
-```
-
-❗ Also, make sure all the submodules are up-to-date, and on the `main` branch.
-
-👀 If something doesn't work, try `git submodule update --init` to update the submodules.
-
-## Build
-### Compile Raft Core (Only do this if you know what you are doing)
-```bash
-# Raft core only: build with default options
-$ ./build.sh -c -l -j 8
-
-# Raft core only: build with proxy and docs
-$ ./build.sh -D "-DBUILD_DOCS=ON -DBUILD_PROXY=ON" -c -l -j 8
-
-# Raft core only: build with debug mode
-$ ./build.sh -D "-DBUILD_DOCS=ON -DBUILD_PROXY=ON -DCMAKE_BUILD_TYPE=Debug" -c -l -j 8
-```
-
-### Run the whole suite inside Docker containers (recommended)
-```bash
-# Init raft config files (This should be done before building Docker) 
-$ ./run.sh -i
-
-# build via Docker
-$ ./build.sh -d
-
-# run raft proxy and nodes
-$ ./run.sh -s
-
-# terminate raft proxy and nodes
-$ ./run.sh -tc
-```
-
-## Admin Panel
-
-Allow users to monitor the status of the raft cluster and scale the cluster on the web page.
-
-```bash
-open http://localhost:3000
-```
-
-## Proxy Server
-
-When the database is launched, a client can submit the following HTTP requests
-to the Proxy to interact with the database. Note that the database adopt eventually
-consistency model, which is guarantee that all accesses to a node will return
-the last updated value.
-
-```bash
-$ export HOST="localhost:8080"
-$ export NODE_ID=0
-
-# check a node status by a node id
-$ curl http://${HOST}/ping/${NODE_ID}
-{"data":"","index":0,"leader":true,"success":true,"term":1}
-
-# set a key/value pair to the database
-$ curl -XPOST http://${HOST}/db/test -d "test"
-{"data":"","index":1,"leader":true,"success":true,"term":1}
-
-# get whole [k, v] pairs from the database
-$ curl http://${HOST}/db/
-{"data"::"{\"test\":\"test\"}","index":0,"leader":false,"success":true,"term":1}
-
-# get a value from a key
-$ curl http://${HOST}/db/test
-{"data":"test","index":0,"leader":false,"success":true,"term":1}
-
-# scale the cluster by adding 1 nodes
-$ curl -XPATCH http://${HOST}/nodes
-{"success":true,"adjustment":"1","exit_status":0}
-
-# scale the cluster by removing 1 node
-$ curl -XPATCH http://${HOST}/nodes -d "-1"
-{"success":true,"adjustment":"-1","exit_status":0}
-
-# scale the cluster by delete node of id = 2
-$ curl -XDELETE http://${HOST}/nodes/2
-{"success":true,"node_id":"2","exit_status":0}
-
-# get the current scaling status or log
-$ curl http://${HOST}/scale/log
-# when scaling is in progress
-{"message":"Scaling is in progress. Please try again later.","success":false}
-# when adjustment scaling is done, log will be return
-{"adjustment":"1","job_type":"adjust_node_count","log":"[INFO] Nodes: [0, 1, 2, 3]\n","success":true}
-# when delete node is done, log will be return
-{"job_type":"delete_node_by_id","log":"[INFO] Nodes: [1, 2, 3, 4, 5]\n","node_id":"0","success":true}
-
-# get the current raft cluster configurations
-$ curl http://${HOST}/configurations
-{"data":"{\"heartbeat_duration\":50,\"random_duration\":500,\"timeout\":500}","index":0,"leader":false,"success":true,"term":1}
-
-# set the current raft cluster configurations
-$ curl -XPATCH 'http://${HOST}/configurations' \
---data '{
-    "timeout": 100,
-    "random_duration": 100,
-    "heartbeat_duration": 100
-}'
-{"data":"","index":0,"leader":true,"success":true,"term":1}
-
-
-
-```
-
-## Python scripts
-
-### `config/config_generator.py`
-```bash
-# Generate raft node config and docker-compose file for n nodes
-$ python3 ./config/config_generator.py -n 3
-$ python3 ./config/config_generator.py --nodes 3
-
-# Add 3 nodes
-$ python3 ./config/config_generator.py -a 3
-$ python3 ./config/config_generator.py --adjust 3
-
-# Remove 3 nodes
-$ python3 ./config/config_generator.py -a -3
-$ python3 ./config/config_generator.py --adjust -3
-
-# Remove node of id = 3
-$ python3 ./config/config_generator.py -r 3
-$ python3 ./config/config_generator.py --remove 3
-```
-
-## Shell scripts - ./config/run.sh
-
-
-```bash
-./run.sh [OPTIONS]
-
-# show help
-$ ./run.sh -h
-
-# init: create 3 (default) raft config files and create docker volume and network
-$ ./run.sh -i
-
-# start: start the raft service
-$ ./run.sh -s
-
-# terminate: stop raft service & remove all nodes
-$ ./run.sh -t
-
-# clean: remove docker volume and network
-$ ./run.sh -c
-
-# add: add 3 nodes & restart the raft cluster
-$ ./run.sh -a 3
-
-# remove: remove 3 nodes & restart the raft cluster
-$ ./run.sh -a -3
-
-# remove: remove node of id = 2 & restart the raft cluster
-$ ./run.sh -r 2
-
-# terminate and clean: stop raft service, remove all nodes, remove docker volume and network
-$ ./run.sh -tc
-```
-
-## Reference
-
-1. [In Search of an Understandable Consensus Algorithm](https://raft.github.io/raft.pdf)
-2. [The Raft Consensus Algorithm](https://raft.github.io/)
-3. [gRPC Document](https://grpc.io/docs/)
-4. [Drogon Document](https://drogon.docsforge.com/)
-5. [spdlog Document](https://spdlog.docsforge.com/)
